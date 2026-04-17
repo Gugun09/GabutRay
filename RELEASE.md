@@ -75,20 +75,22 @@ gabutray-linux-amd64/
 
 ## Cara Upload Release
 
-Developer:
+Release dibuat otomatis oleh GitHub Actions saat tag versi dipush.
+
+Developer cukup jalankan:
 
 ```bash
 git tag v0.1.0
 git push origin v0.1.0
-scripts/build-linux-amd64.sh
 ```
 
-Upload asset ini ke GitHub Release:
+Workflow akan menjalankan test, build bundle, verify checksum, membuat GitHub
+Release, lalu upload asset ini:
 
 ```text
 dist/gabutray-linux-amd64.tar.gz
 dist/gabutray-linux-amd64.tar.gz.sha256
 ```
 
-Tempel isi release notes ini di deskripsi GitHub Release, lalu sesuaikan versi
-dan catatan perubahan.
+Isi release notes memakai file `RELEASE.md`, lalu sesuaikan versi dan catatan
+perubahan sebelum membuat tag berikutnya.

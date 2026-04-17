@@ -228,8 +228,17 @@ Verify checksum:
 sha256sum -c dist/gabutray-linux-amd64.tar.gz.sha256
 ```
 
-Upload kedua file tersebut ke GitHub Release. Jangan arahkan pengguna awam ke
-source archive otomatis GitHub; arahkan mereka ke `gabutray-linux-amd64.tar.gz`.
+Release GitHub dibuat otomatis oleh GitHub Actions saat tag versi dipush:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Workflow akan menjalankan test, build bundle, verify checksum, membuat GitHub
+Release, dan upload `gabutray-linux-amd64.tar.gz` beserta file `.sha256`.
+Jangan arahkan pengguna awam ke source archive otomatis GitHub; arahkan mereka
+ke asset `gabutray-linux-amd64.tar.gz`.
 
 ## Catatan Implementasi
 
