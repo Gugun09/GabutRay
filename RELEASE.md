@@ -1,6 +1,6 @@
 # Gabutray Release Notes
 
-## Gabutray v0.1.0
+## Gabutray Release
 
 Target release pertama:
 
@@ -81,8 +81,8 @@ Release dibuat otomatis oleh GitHub Actions saat tag versi dipush.
 Developer cukup jalankan:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
 Workflow akan menjalankan test, build bundle, verify checksum, membuat GitHub
