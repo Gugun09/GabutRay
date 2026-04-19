@@ -32,9 +32,10 @@ Mulai dari menu interaktif:
 gabutray menu
 ```
 
-Menu utama menampilkan status koneksi aktif, profile aktif, dan latency TCP
-semua profile. Latency diperbarui otomatis setiap 10 detik supaya pengguna bisa
-melihat apakah server masih responsif atau mulai timeout.
+Menu utama berbentuk dashboard terminal. Di layar utama tersedia status koneksi,
+profile aktif, daftar profile, dan latency TCP semua profile. Latency diperbarui
+otomatis setiap 10 detik supaya pengguna bisa melihat apakah server masih
+responsif atau mulai timeout.
 
 Di menu, pilih:
 

@@ -42,7 +42,7 @@ func TestViewHomeShowsActiveProfileAndLatency(t *testing.T) {
 	}
 
 	out := m.viewHome()
-	for _, want := range []string{"Status", "Terhubung", "main", "example.com:443", "48 ms", "*"} {
+	for _, want := range []string{"Status", "CONNECTED", "main", "example.com:443", "48 ms", "ACTIVE"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q in %q", want, out)
 		}

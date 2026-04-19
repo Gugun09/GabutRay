@@ -7,6 +7,7 @@ Target release pertama:
 - Linux amd64
 - CLI Go
 - Menu interaktif untuk pengguna awam
+- Dashboard terminal responsif dengan panel status, menu aksi, dan tabel latency
 - Menu utama menampilkan profile aktif dan latency realtime setiap 10 detik
 - DNS anti-leak otomatis untuk sistem `systemd-resolved`/`resolvectl`
 - Test latency TCP profile sebelum connect

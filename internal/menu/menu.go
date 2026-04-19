@@ -56,6 +56,9 @@ type menuItem struct {
 const (
 	latencyRefreshInterval = 10 * time.Second
 	latencyCheckTimeout    = 3 * time.Second
+	defaultViewWidth       = 100
+	defaultViewHeight      = 32
+	wideLayoutMinWidth     = 104
 )
 
 type latencyTickMsg time.Time
@@ -88,19 +91,26 @@ type model struct {
 	latencyChecking  bool
 	latencyCheckedAt time.Time
 	homeErr          string
+	width            int
+	height           int
 }
 
 var (
-	titleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
-	choiceStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	cursorStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("42"))
-	mutedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	errorStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	warnStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-	activeStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("42"))
-	headerStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("250"))
-	panelStyle   = lipgloss.NewStyle().Padding(1, 2)
+	titleStyle        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
+	brandStyle        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("51"))
+	choiceStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	cursorStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("42"))
+	mutedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	errorStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	successStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	warnStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	activeStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("42"))
+	headerStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("250"))
+	panelStyle        = lipgloss.NewStyle().Padding(1, 2)
+	cardStyle         = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("238")).Padding(1, 2)
+	activeCardStyle   = cardStyle.Copy().BorderForeground(lipgloss.Color("42"))
+	selectedItemStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15")).Background(lipgloss.Color("36")).Padding(0, 1)
+	footerStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("244")).BorderTop(true).BorderStyle(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("238")).PaddingTop(1)
 )
 
 func Run(opts Options) error {
@@ -128,6 +138,8 @@ func newModel(opts Options, paths config.Paths, cfg config.Config) model {
 		cfg:            cfg,
 		stage:          stageHome,
 		latencyResults: make(map[string]latency.Result),
+		width:          defaultViewWidth,
+		height:         defaultViewHeight,
 		items: []menuItem{
 			{"Quick Setup", "Cek kesiapan service dan dependency", actionSetup},
 			{"Tambah Profile", "Paste link vless://, vmess://, atau trojan://", actionAddProfile},
@@ -149,6 +161,10 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
 	case latencyTickMsg:
 		return m, tea.Batch(latencyTick(), refreshHome(m.paths))
 	case homeRefreshMsg:
@@ -398,23 +414,30 @@ func (m model) withMessage(message string) model {
 }
 
 func (m model) viewHome() string {
-	var b strings.Builder
-	b.WriteString(titleStyle.Render("Gabutray Menu") + "\n")
-	b.WriteString(mutedStyle.Render("Pilih dengan panah lalu Enter. Tekan q untuk keluar.") + "\n\n")
-	b.WriteString(m.viewConnectionSummary() + "\n\n")
-	b.WriteString(m.viewProfileLatencyTable() + "\n\n")
-	b.WriteString(headerStyle.Render("Menu") + "\n")
-	for i, item := range m.items {
-		cursor := "  "
-		style := choiceStyle
-		if i == m.cursor {
-			cursor = "> "
-			style = cursorStyle
-		}
-		b.WriteString(style.Render(cursor+item.title) + "\n")
-		b.WriteString(mutedStyle.Render("    "+item.desc) + "\n")
+	width := m.contentWidth()
+	var body string
+	if width >= wideLayoutMinWidth {
+		sideWidth := 34
+		gap := 2
+		mainWidth := width - sideWidth - gap
+		left := m.viewProfileLatencyCard(mainWidth)
+		right := lipgloss.JoinVertical(lipgloss.Left,
+			m.viewStatusCard(sideWidth),
+			m.viewActionMenuCard(sideWidth),
+		)
+		body = lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), right)
+	} else {
+		body = lipgloss.JoinVertical(lipgloss.Left,
+			m.viewProfileLatencyCard(width),
+			m.viewStatusCard(width),
+			m.viewActionMenuCard(width),
+		)
 	}
-	return b.String()
+	return lipgloss.JoinVertical(lipgloss.Left,
+		m.viewTitleBar(width),
+		body,
+		m.viewFooter(width),
+	)
 }
 
 func (m model) viewInput(title, help string) string {
@@ -468,39 +491,61 @@ func (m model) viewMessage() string {
 	return body + "\n\n" + mutedStyle.Render("Enter/Esc untuk kembali. q untuk keluar.")
 }
 
-func (m model) viewConnectionSummary() string {
+func (m model) viewTitleBar(width int) string {
+	status := "DISCONNECTED"
+	statusStyle := mutedStyle
+	if m.active != nil {
+		status = "CONNECTED"
+		statusStyle = successStyle
+	}
+	left := brandStyle.Render("GabutRay") + " " + mutedStyle.Render("Linux TUN CLI")
+	right := statusStyle.Render(status)
+	padding := width - lipgloss.Width(left) - lipgloss.Width(right)
+	if padding < 1 {
+		padding = 1
+	}
+	return left + strings.Repeat(" ", padding) + right
+}
+
+func (m model) viewStatusCard(width int) string {
 	var b strings.Builder
-	b.WriteString(headerStyle.Render("Status") + "\n")
+	b.WriteString(headerStyle.Render("Status") + "\n\n")
 	if m.active == nil {
-		b.WriteString("Koneksi: " + mutedStyle.Render("Belum terhubung") + "\n")
+		b.WriteString(mutedStyle.Render("Koneksi") + "\n")
+		b.WriteString(errorStyle.Render("DISCONNECTED") + "\n")
 	} else {
-		b.WriteString("Koneksi: " + successStyle.Render("Terhubung") + "\n")
-		b.WriteString("Aktif:   " + activeStyle.Render(fmt.Sprintf("%s (%s)", m.active.ProfileName, m.active.ProfileID)) + "\n")
+		b.WriteString(mutedStyle.Render("Koneksi") + "\n")
+		b.WriteString(successStyle.Render("CONNECTED") + "\n\n")
+		b.WriteString(mutedStyle.Render("Profile") + "\n")
+		b.WriteString(activeStyle.Render(truncate(m.active.ProfileName, cardContentWidth(width))) + "\n")
 		if item, ok := m.profileByID(m.active.ProfileID); ok {
-			b.WriteString(fmt.Sprintf("Server:  %s:%d\n", item.Address, item.Port))
+			b.WriteString("\n" + mutedStyle.Render("Server") + "\n")
+			b.WriteString(truncate(fmt.Sprintf("%s:%d", item.Address, item.Port), cardContentWidth(width)) + "\n")
 		}
 		tunLine := strings.TrimSpace(fmt.Sprintf("%s %s", m.active.TunName, m.active.TunCIDR))
 		if tunLine != "" {
-			b.WriteString("TUN:     " + tunLine + "\n")
+			b.WriteString("\n" + mutedStyle.Render("TUN") + "\n")
+			b.WriteString(truncate(tunLine, cardContentWidth(width)) + "\n")
 		}
 		if m.active.DNS != nil && m.active.DNS.Enabled {
-			b.WriteString("DNS:     " + strings.Join(m.active.DNS.Servers, ", ") + "\n")
+			b.WriteString("\n" + mutedStyle.Render("DNS") + "\n")
+			b.WriteString(truncate(strings.Join(m.active.DNS.Servers, ", "), cardContentWidth(width)) + "\n")
 		}
 	}
 	if m.homeErr != "" {
-		b.WriteString(warnStyle.Render("Peringatan: "+m.homeErr) + "\n")
+		b.WriteString("\n" + warnStyle.Render(truncate("Peringatan: "+m.homeErr, cardContentWidth(width))) + "\n")
 	}
-	return strings.TrimRight(b.String(), "\n")
+	return m.renderCard(width, strings.TrimRight(b.String(), "\n"), false)
 }
 
-func (m model) viewProfileLatencyTable() string {
+func (m model) viewProfileLatencyCard(width int) string {
 	var b strings.Builder
 	b.WriteString(headerStyle.Render("Profile & Latency") + "\n")
 	if len(m.profiles) == 0 {
 		b.WriteString(mutedStyle.Render("Belum ada profile. Pilih Tambah Profile dulu.") + "\n")
-		return strings.TrimRight(b.String(), "\n")
+		return m.renderCard(width, strings.TrimRight(b.String(), "\n"), false)
 	}
-	status := "auto refresh 10 detik"
+	status := "refresh 10 detik"
 	if m.latencyChecking {
 		status += " | checking"
 	}
@@ -508,24 +553,71 @@ func (m model) viewProfileLatencyTable() string {
 		status += " | update " + m.latencyCheckedAt.Format("15:04:05")
 	}
 	b.WriteString(mutedStyle.Render(status) + "\n")
-	b.WriteString(mutedStyle.Render("  NAME               PROTO    SERVER                       LATENCY") + "\n")
+	b.WriteString("\n")
+	contentWidth := cardContentWidth(width)
+	stateW, nameW, protoW, latencyW, serverW := tableColumns(contentWidth)
+	stateTitle := "STATE"
+	if stateW <= 1 {
+		stateTitle = "A"
+	}
+	header := fmt.Sprintf("%-*s %-*s %-*s %-*s %-*s",
+		stateW, stateTitle,
+		nameW, "NAME",
+		protoW, "PROTO",
+		serverW, "SERVER",
+		latencyW, "LATENCY",
+	)
+	b.WriteString(mutedStyle.Render(truncate(header, contentWidth)) + "\n")
+	b.WriteString(mutedStyle.Render(strings.Repeat("-", clampInt(contentWidth, 8, 120))) + "\n")
 	for _, item := range m.profiles {
-		marker := " "
+		state := ""
 		style := choiceStyle
 		if m.isActiveProfile(item) {
-			marker = "*"
+			state = "ACTIVE"
+			if stateW <= 1 {
+				state = "*"
+			}
 			style = activeStyle
 		}
-		line := fmt.Sprintf("%s %-18s %-8s %-28s %s",
-			marker,
-			truncate(item.Name, 18),
-			item.Protocol,
-			truncate(fmt.Sprintf("%s:%d", item.Address, item.Port), 28),
+		line := fmt.Sprintf("%-*s %-*s %-*s %-*s %s",
+			stateW, state,
+			nameW, truncate(item.Name, nameW),
+			protoW, truncate(string(item.Protocol), protoW),
+			serverW, truncate(fmt.Sprintf("%s:%d", item.Address, item.Port), serverW),
 			m.latencyText(item),
 		)
 		b.WriteString(style.Render(line) + "\n")
 	}
-	return strings.TrimRight(b.String(), "\n")
+	return m.renderCard(width, strings.TrimRight(b.String(), "\n"), true)
+}
+
+func (m model) viewActionMenuCard(width int) string {
+	var b strings.Builder
+	b.WriteString(headerStyle.Render("Menu") + "\n\n")
+	for i, item := range m.items {
+		label := truncate(item.title, maxInt(8, cardContentWidth(width)-4))
+		if i == m.cursor {
+			b.WriteString(selectedItemStyle.Render("> "+label) + "\n")
+			b.WriteString(mutedStyle.Render("  "+truncate(item.desc, maxInt(8, cardContentWidth(width)-2))) + "\n")
+			continue
+		}
+		b.WriteString(choiceStyle.Render("  "+label) + "\n")
+	}
+	return m.renderCard(width, strings.TrimRight(b.String(), "\n"), false)
+}
+
+func (m model) viewFooter(width int) string {
+	text := "Up/Down navigate  Enter select  Esc back  q quit"
+	return footerStyle.Width(maxInt(1, width)).Render(truncate(text, width))
+}
+
+func (m model) renderCard(width int, body string, active bool) string {
+	style := cardStyle
+	if active {
+		style = activeCardStyle
+	}
+	contentWidth := cardContentWidth(width)
+	return style.Width(contentWidth).Render(body)
 }
 
 func (m model) latencyText(item profile.Profile) string {
@@ -622,6 +714,45 @@ func combineErrors(errs ...error) error {
 	return nil
 }
 
+func (m model) contentWidth() int {
+	if m.width <= 0 {
+		return defaultViewWidth
+	}
+	return clampInt(m.width-4, 36, 140)
+}
+
+func cardContentWidth(width int) int {
+	return maxInt(16, width-12)
+}
+
+func tableColumns(width int) (stateW, nameW, protoW, latencyW, serverW int) {
+	if width < 48 {
+		stateW = 1
+		protoW = 5
+		latencyW = 8
+		nameW = clampInt(width/3, 8, 12)
+		serverW = width - stateW - nameW - protoW - latencyW - 4
+		if serverW < 8 {
+			nameW = maxInt(6, nameW-(8-serverW))
+			serverW = width - stateW - nameW - protoW - latencyW - 4
+		}
+		serverW = maxInt(8, serverW)
+		return stateW, nameW, protoW, latencyW, serverW
+	}
+	stateW = 6
+	protoW = 6
+	latencyW = 10
+	nameW = clampInt(width/4, 10, 22)
+	serverW = width - stateW - nameW - protoW - latencyW - 4
+	if serverW < 14 {
+		deficit := 14 - serverW
+		nameW = maxInt(8, nameW-deficit)
+		serverW = width - stateW - nameW - protoW - latencyW - 4
+	}
+	serverW = maxInt(12, serverW)
+	return stateW, nameW, protoW, latencyW, serverW
+}
+
 func truncate(value string, limit int) string {
 	runes := []rune(value)
 	if len(runes) <= limit {
@@ -631,6 +762,23 @@ func truncate(value string, limit int) string {
 		return string(runes[:limit])
 	}
 	return string(runes[:limit-1]) + "."
+}
+
+func clampInt(value, min, max int) int {
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func beginnerDoctorSummary(report string) string {
