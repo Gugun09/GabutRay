@@ -32,11 +32,15 @@ Mulai dari menu interaktif:
 gabutray menu
 ```
 
+Menu utama menampilkan status koneksi aktif, profile aktif, dan latency TCP
+semua profile. Latency diperbarui otomatis setiap 10 detik supaya pengguna bisa
+melihat apakah server masih responsif atau mulai timeout.
+
 Di menu, pilih:
 
 - `Tambah Profile` untuk paste link `vless://`, `vmess://`, atau `trojan://`.
 - `Pilih & Connect` untuk menghubungkan VPN.
-- `Test Profile` untuk cek latency server sebelum connect.
+- `Test Profile` untuk cek latency server manual sebelum connect.
 - `Status` untuk melihat koneksi aktif.
 - `Disconnect` untuk memutus koneksi.
 - `Doctor` untuk cek kesiapan sistem.

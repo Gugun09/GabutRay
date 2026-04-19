@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"gabutray/internal/profile"
@@ -53,6 +54,20 @@ func CheckAll(items []profile.Profile, timeout time.Duration) []Result {
 	return results
 }
 
+func CheckAllConcurrent(items []profile.Profile, timeout time.Duration) []Result {
+	results := make([]Result, len(items))
+	var wg sync.WaitGroup
+	for i, item := range items {
+		wg.Add(1)
+		go func(index int, current profile.Profile) {
+			defer wg.Done()
+			results[index] = Check(current, timeout)
+		}(i, item)
+	}
+	wg.Wait()
+	return results
+}
+
 func FormatResults(results []Result) string {
 	if len(results) == 0 {
 		return "no profiles imported"
@@ -63,13 +78,13 @@ func FormatResults(results []Result) string {
 			result.Profile.Name,
 			result.Profile.Protocol,
 			result.Address,
-			statusText(result),
+			ResultText(result),
 		)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func statusText(result Result) string {
+func ResultText(result Result) string {
 	switch result.Status {
 	case StatusOK:
 		ms := result.Duration.Round(time.Millisecond)

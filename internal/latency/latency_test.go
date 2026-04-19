@@ -72,3 +72,38 @@ func TestFormatResults(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckAllConcurrentPreservesOrder(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+
+	_, portText, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	items := []profile.Profile{
+		{Name: "first", Protocol: profile.ProtocolVLESS, Address: "127.0.0.1", Port: port},
+		{Name: "second", Protocol: profile.ProtocolTrojan, Address: "127.0.0.1", Port: 1},
+	}
+	results := CheckAllConcurrent(items, time.Second)
+
+	if len(results) != len(items) {
+		t.Fatalf("len(results) = %d, want %d", len(results), len(items))
+	}
+	for i, item := range items {
+		if results[i].Profile.Name != item.Name {
+			t.Fatalf("result %d profile = %s, want %s", i, results[i].Profile.Name, item.Name)
+		}
+	}
+	if results[0].Status != StatusOK {
+		t.Fatalf("first status = %s, want %s", results[0].Status, StatusOK)
+	}
+}
